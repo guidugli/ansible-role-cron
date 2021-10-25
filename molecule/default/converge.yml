@@ -1,0 +1,27 @@
+---
+- name: Converge
+  hosts: all
+  pre_tasks:
+#    - name: update RedHat systems running yum
+#      yum:
+#        name: "*"
+#        state: latest
+#      when: ansible_pkg_mgr in ['yum', 'dnf']
+
+    - name: update Ubuntu/Debian systems
+      apt:
+#        upgrade: dist
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_pkg_mgr == "apt"
+
+#    - name: Make sure some packages are installed
+#      ansible.builtin.package:
+#        name:
+#          - sudo
+#          - vim
+#          - curl
+#        state: latest
+
+  roles:
+    - role: guidugli.cron
