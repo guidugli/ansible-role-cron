@@ -8,7 +8,7 @@ _cron_packages:
     - dcron
   Debian:
     - cron
-  Ubuntu-20:
+  Ubuntu:
     - systemd-cron
   Ubuntu-18:
     - cron
@@ -29,7 +29,7 @@ _cron_service:
   Debian: cron
   Suse: cron
   Archlinux: cronie
-  Ubuntu-20: cron.target
+  Ubuntu: cron.target
   Ubuntu-18: cron
 
 cron_service: "{{ _cron_service[ansible_distribution ~ '-' ~ ansible_distribution_major_version] |
