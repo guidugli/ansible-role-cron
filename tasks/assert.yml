@@ -1,5 +1,5 @@
 ---
-- name: test if cron_shell is set correctly
+- name: Test if cron_shell is set correctly
   ansible.builtin.assert:
     that:
       - cron_shell is defined
@@ -7,7 +7,7 @@
       - cron_shell | length > 0
     quiet: yes
 
-- name: test if cron_path is set correctly
+- name: Test if cron_path is set correctly
   ansible.builtin.assert:
     that:
       - cron_path is defined
@@ -15,7 +15,7 @@
       - cron_path | length > 0
     quiet: yes
 
-- name: test if cron_mailto is set correctly
+- name: Test if cron_mailto is set correctly
   ansible.builtin.assert:
     that:
       - cron_mailto is defined
@@ -23,7 +23,7 @@
       - cron_mailto | length > 0
     quiet: yes
 
-- name: test if cron_jobs is set correctly
+- name: Test if cron_jobs is set correctly
   ansible.builtin.assert:
     that:
       - cron_jobs is iterable
@@ -31,7 +31,7 @@
     quiet: yes
   when: cron_jobs is defined
 
-- name: test if item in cron_jobs is set correctly
+- name: Test if item in cron_jobs is set correctly
   ansible.builtin.assert:
     that:
       - item.name is defined
@@ -46,7 +46,7 @@
     label: "{{ item.name }}"
   when: cron_jobs is defined
 
-- name: test if item.minute is set correctly
+- name: Test if item.minute is set correctly
   ansible.builtin.assert:
     that:
       - item.minute | int(-1) >= 0
@@ -59,7 +59,7 @@
     - cron_jobs is defined
     - item.minute is defined
 
-- name: test if item.hour is set correctly
+- name: Test if item.hour is set correctly
   ansible.builtin.assert:
     that:
       - item.hour | int(-1) >= 0
@@ -72,7 +72,7 @@
     - cron_jobs is defined
     - item.hour is defined
 
-- name: test if item.weekday is set correctly
+- name: Test if item.weekday is set correctly
   ansible.builtin.assert:
     that:
       - item.weekday | int(-1) >= 0
@@ -85,7 +85,7 @@
     - cron_jobs is defined
     - item.weekday is defined
 
-- name: test if item.user is set correctly
+- name: Test if item.user is set correctly
   ansible.builtin.assert:
     that:
       - item.user is string
@@ -96,7 +96,7 @@
     label: "{{ item.name }}"
   when: item.user is defined
 
-- name: test if cron_allowed_users is set correctly
+- name: Test if cron_allowed_users is set correctly
   ansible.builtin.assert:
     that:
       - item is defined
