@@ -1,109 +1,115 @@
 ---
-# tasks file for cron
-- name: Include assert.yml
-  ansible.builtin.include_tasks: assert.yml
-  run_once: yes
 
-- name: Install cron
-  ansible.builtin.package:
-    name: "{{ cron_packages }}"
-    state: present
-    update_cache: yes
+- name: Execute role tasks
+  block:
 
-- name: Configure shell
-  ansible.builtin.lineinfile:
-    path: "{{ cron_configuration }}"
-    line: "SHELL={{ cron_shell }}"
-    regexp: "^SHELL"
-    create: yes
-    mode: "0600"
-  notify:
-    - Restart cron
+    # tasks file for cron
+    - name: Include assert.yml
+      ansible.builtin.include_tasks: assert.yml
+      run_once: yes
+    
+    - name: Install cron
+      ansible.builtin.package:
+        name: "{{ cron_packages }}"
+        state: present
+        update_cache: yes
+    
+    - name: Configure shell
+      ansible.builtin.lineinfile:
+        path: "{{ cron_configuration }}"
+        line: "SHELL={{ cron_shell }}"
+        regexp: "^SHELL"
+        create: yes
+        mode: "0600"
+      notify:
+        - Restart cron
+    
+    - name: Configure path
+      ansible.builtin.lineinfile:
+        path: "{{ cron_configuration }}"
+        line: "PATH={{ cron_path }}"
+        regexp: "^PATH"
+        create: yes
+        mode: "0600"
+      notify:
+        - Restart cron
+    
+    - name: Configure mailto
+      ansible.builtin.lineinfile:
+        path: "{{ cron_configuration }}"
+        line: "MAILTO={{ cron_mailto }}"
+        regexp: "^MAILTO"
+        create: yes
+        mode: "0600"
+      notify:
+        - Restart cron
+    
+    - name: Ensure directories and files have correct permissions
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: '/etc/cron.hourly', mode: '0700' }
+        - { path: '/etc/cron.daily', mode: '0700' }
+        - { path: '/etc/cron.weekly', mode: '0700' }
+        - { path: '/etc/cron.monthly', mode: '0700' }
+        - { path: '/etc/cron.d', mode: '0700' }
+    
+    # If cron.deny do not exist, cron will only check for cron.allow
+    - name: Ensure cron.deny do not exist
+      ansible.builtin.file:
+        path: /etc/cron.deny
+        state: absent
+    
+    - name: Ensure cron.allow exists
+      ansible.builtin.file:
+        path: /etc/cron.allow
+        state: touch
+        mode: '0640'
+        modification_time: preserve
+        access_time: preserve
+        owner: root
+        group: root
+    
+    - name: Add users to cron.allow
+      ansible.builtin.lineinfile:
+        path: /etc/cron.allow
+        create: yes
+        owner: root
+        group: root
+        mode: '0640'
+        regexp: "{{ item }}"
+        line: "{{ item }}"
+      loop: "{{ cron_allowed_users }}"
+      when: cron_allowed_users is defined
+    
+    - name: Start and enable cron
+      ansible.builtin.service:
+        name: "{{ cron_service }}"
+        state: started
+        enabled: yes
+      when:
+        - cron_service | length
+    
+    - name: Schedule requested cron jobs
+      ansible.builtin.cron:
+        name: "{{ item.name }}"
+        minute: "{{ item.minute | default(omit) }}"
+        hour: "{{ item.hour | default(omit) }}"
+        day: "{{ item.day | default(omit) }}"
+        month: "{{ item.month | default(omit) }}"
+        weekday: "{{ item.weekday | default(omit) }}"
+        job: "{{ item.job }}"
+        state: "{{ item.state | default('present') }}"
+        user: "{{ item.user | default(omit) }}"
+      loop: "{{ cron_jobs }}"
+      loop_control:
+        label: "{{ item.name }}"
+      notify:
+        - Restart cron
+      when:
+        - cron_jobs is defined
 
-- name: Configure path
-  ansible.builtin.lineinfile:
-    path: "{{ cron_configuration }}"
-    line: "PATH={{ cron_path }}"
-    regexp: "^PATH"
-    create: yes
-    mode: "0600"
-  notify:
-    - Restart cron
-
-- name: Configure mailto
-  ansible.builtin.lineinfile:
-    path: "{{ cron_configuration }}"
-    line: "MAILTO={{ cron_mailto }}"
-    regexp: "^MAILTO"
-    create: yes
-    mode: "0600"
-  notify:
-    - Restart cron
-
-- name: Ensure directories and files have correct permissions
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    owner: root
-    group: root
-    mode: "{{ item.mode }}"
-  loop:
-    - { path: '/etc/cron.hourly', mode: '0700' }
-    - { path: '/etc/cron.daily', mode: '0700' }
-    - { path: '/etc/cron.weekly', mode: '0700' }
-    - { path: '/etc/cron.monthly', mode: '0700' }
-    - { path: '/etc/cron.d', mode: '0700' }
-
-# If cron.deny do not exist, cron will only check for cron.allow
-- name: Ensure cron.deny do not exist
-  ansible.builtin.file:
-    path: /etc/cron.deny
-    state: absent
-
-- name: Ensure cron.allow exists
-  ansible.builtin.file:
-    path: /etc/cron.allow
-    state: touch
-    mode: '0640'
-    modification_time: preserve
-    access_time: preserve
-    owner: root
-    group: root
-
-- name: Add users to cron.allow
-  ansible.builtin.lineinfile:
-    path: /etc/cron.allow
-    create: yes
-    owner: root
-    group: root
-    mode: '0640'
-    regexp: "{{ item }}"
-    line: "{{ item }}"
-  loop: "{{ cron_allowed_users }}"
-  when: cron_allowed_users is defined
-
-- name: Start and enable cron
-  ansible.builtin.service:
-    name: "{{ cron_service }}"
-    state: started
-    enabled: yes
-  when:
-    - cron_service | length
-
-- name: Schedule requested cron jobs
-  ansible.builtin.cron:
-    name: "{{ item.name }}"
-    minute: "{{ item.minute | default(omit) }}"
-    hour: "{{ item.hour | default(omit) }}"
-    day: "{{ item.day | default(omit) }}"
-    month: "{{ item.month | default(omit) }}"
-    weekday: "{{ item.weekday | default(omit) }}"
-    job: "{{ item.job }}"
-    state: "{{ item.state | default('present') }}"
-    user: "{{ item.user | default(omit) }}"
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify:
-    - Restart cron
-  when:
-    - cron_jobs is defined
+  become: yes
