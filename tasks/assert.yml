@@ -1,107 +1,75 @@
 ---
-- name: Test if cron_shell is set correctly
+- name: Validate cron_shell
   ansible.builtin.assert:
     that:
-      - cron_shell is defined
-      - cron_shell is string
-      - cron_shell | length > 0
-    quiet: yes
+      - cron_shell | string | trim | length > 0
+    fail_msg: cron_shell must be a non-empty string.
+    quiet: true
 
-- name: Test if cron_path is set correctly
+- name: Validate cron_path
   ansible.builtin.assert:
     that:
-      - cron_path is defined
-      - cron_path is string
-      - cron_path | length > 0
-    quiet: yes
+      - cron_path | string | trim | length > 0
+    fail_msg: cron_path must be a non-empty string.
+    quiet: true
 
-- name: Test if cron_mailto is set correctly
+- name: Validate cron_mailto
   ansible.builtin.assert:
     that:
-      - cron_mailto is defined
-      - cron_mailto is string
-      - cron_mailto | length > 0
-    quiet: yes
+      - cron_mailto | string | trim | length > 0
+    fail_msg: cron_mailto must be a non-empty string.
+    quiet: true
 
-- name: Test if cron_jobs is set correctly
+- name: Validate cron_allowed_users container type
   ansible.builtin.assert:
     that:
-      - cron_jobs is iterable
-      - cron_jobs | length > 0
-    quiet: yes
-  when: cron_jobs is defined
+      - cron_allowed_users is sequence
+      - cron_allowed_users is not string
+    fail_msg: cron_allowed_users must be a list of usernames.
+    quiet: true
 
-- name: Test if item in cron_jobs is set correctly
+- name: Validate cron_allowed_users entries
   ansible.builtin.assert:
     that:
-      - item.name is defined
-      - item.name is string
-      - item.name | length > 0
-      - item.job is defined
-      - item.job is string
-      - item.job | length > 0
-    quiet: yes
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: cron_jobs is defined
-
-- name: Test if item.minute is set correctly
-  ansible.builtin.assert:
-    that:
-      - item.minute | int(-1) >= 0
-      - item.minute | int <= 59
-    quiet: yes
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when:
-    - cron_jobs is defined
-    - item.minute is defined
-
-- name: Test if item.hour is set correctly
-  ansible.builtin.assert:
-    that:
-      - item.hour | int(-1) >= 0
-      - item.hour | int <= 23
-    quiet: yes
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when:
-    - cron_jobs is defined
-    - item.hour is defined
-
-- name: Test if item.weekday is set correctly
-  ansible.builtin.assert:
-    that:
-      - item.weekday | int(-1) >= 0
-      - item.weekday | int <= 6
-    quiet: yes
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when:
-    - cron_jobs is defined
-    - item.weekday is defined
-
-- name: Test if item.user is set correctly
-  ansible.builtin.assert:
-    that:
-      - item.user is string
-      - item.user | length > 0
-    quiet: yes
-  loop: "{{ cron_jobs }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: item.user is defined
-
-- name: Test if cron_allowed_users is set correctly
-  ansible.builtin.assert:
-    that:
-      - item is defined
-      - item is string
-      - item | length > 0
-    quiet: yes
+      - item | string | trim | length > 0
+    fail_msg: Each entry in cron_allowed_users must be a non-empty string.
+    quiet: true
   loop: "{{ cron_allowed_users }}"
-  when: cron_allowed_users is defined
+  loop_control:
+    label: "{{ item }}"
+
+- name: Validate cron_allowed_users uniqueness
+  ansible.builtin.assert:
+    that:
+      - cron_allowed_users | unique | length == cron_allowed_users | length
+    fail_msg: cron_allowed_users must not contain duplicate usernames.
+    quiet: true
+
+- name: Validate cron_jobs container type
+  ansible.builtin.assert:
+    that:
+      - cron_jobs is sequence
+      - cron_jobs is not string
+    fail_msg: cron_jobs must be a list of cron job definitions.
+    quiet: true
+
+- name: Validate cron_jobs entries
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.name | default('') | string | trim | length > 0
+      - item.state | default('present') in ['present', 'absent']
+      - (item.state | default('present')) == 'absent' or (item.job | default('') | string | trim | length > 0)
+      - item.user is not defined or (item.user | string | trim | length > 0)
+      - item.minute is not defined or (item.minute | string | trim | length > 0)
+      - item.hour is not defined or (item.hour | string | trim | length > 0)
+      - item.day is not defined or (item.day | string | trim | length > 0)
+      - item.month is not defined or (item.month | string | trim | length > 0)
+      - item.weekday is not defined or (item.weekday | string | trim | length > 0)
+    fail_msg: >-
+      Each cron_jobs item must be a mapping with a non-empty name, a valid state,
+      and a non-empty job when state=present.
+    quiet: true
+  loop: "{{ cron_jobs }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"

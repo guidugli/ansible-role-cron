@@ -1,0 +1,83 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure cron.
+    description:
+      - Install cron, manage the base cron environment, control cron.allow, and optionally manage cron jobs.
+    options:
+      cron_shell:
+        type: str
+        required: false
+        description:
+          - Shell used to run cron jobs.
+      cron_path:
+        type: str
+        required: false
+        description:
+          - PATH exported in the system cron configuration.
+      cron_mailto:
+        type: str
+        required: false
+        description:
+          - Mail recipient used by cron for job output.
+      cron_allowed_users:
+        type: list
+        elements: str
+        required: false
+        description:
+          - Users allowed to schedule cron jobs through cron.allow.
+      cron_jobs:
+        type: list
+        elements: dict
+        required: false
+        description:
+          - Cron jobs managed by the role.
+        options:
+          name:
+            type: str
+            required: true
+            description:
+              - Unique cron entry name.
+          job:
+            type: str
+            required: false
+            description:
+              - Command executed by the cron entry. Required when state=present.
+          state:
+            type: str
+            required: false
+            choices:
+              - present
+              - absent
+            description:
+              - Whether the cron entry should exist.
+          minute:
+            type: raw
+            required: false
+            description:
+              - Minute field for the cron entry.
+          hour:
+            type: raw
+            required: false
+            description:
+              - Hour field for the cron entry.
+          day:
+            type: raw
+            required: false
+            description:
+              - Day-of-month field for the cron entry.
+          month:
+            type: raw
+            required: false
+            description:
+              - Month field for the cron entry.
+          weekday:
+            type: raw
+            required: false
+            description:
+              - Day-of-week field for the cron entry.
+          user:
+            type: str
+            required: false
+            description:
+              - User that owns the cron entry.

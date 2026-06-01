@@ -1,13 +1,9 @@
 ---
-# defaults file for cron
+# Public role defaults.
 
-# The shell to use for running cronjobs.
 cron_shell: /bin/bash
-
-# The path to set for running jobs.
 cron_path: /sbin:/bin:/usr/sbin:/usr/bin
-
-# The address where mails should be sent to.
 cron_mailto: root
-
-cron_allowed_users: ['myuser', 'root']
+cron_allowed_users:
+  - root
+cron_jobs: []

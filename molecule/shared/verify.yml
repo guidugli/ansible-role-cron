@@ -1,0 +1,197 @@
+---
+- name: Verify cron role behavior
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - ../../defaults/main.yml
+    - ../../vars/main.yml
+  vars:
+    expected_cron_directories:
+      - path: /etc/cron.hourly
+        mode: '0700'
+      - path: /etc/cron.daily
+        mode: '0700'
+      - path: /etc/cron.weekly
+        mode: '0700'
+      - path: /etc/cron.monthly
+        mode: '0700'
+      - path: /etc/cron.d
+        mode: '0700'
+
+  tasks:
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert cron packages are installed
+      ansible.builtin.assert:
+        that:
+          - item in ansible_facts.packages
+        fail_msg: "Expected cron package {{ item }} to be installed."
+        quiet: true
+      loop: "{{ cron_packages }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Read cron configuration
+      ansible.builtin.slurp:
+        src: "{{ cron_configuration }}"
+      register: cron_configuration_file
+
+    - name: Assert cron configuration contains expected environment lines
+      ansible.builtin.assert:
+        that:
+          - "'SHELL=' ~ cron_shell in (cron_configuration_file.content | b64decode)"
+          - "'PATH=' ~ cron_path in (cron_configuration_file.content | b64decode)"
+          - "'MAILTO=' ~ cron_mailto in (cron_configuration_file.content | b64decode)"
+        fail_msg: >-
+          Cron configuration is missing one or more expected environment lines.
+        quiet: true
+
+    - name: Stat cron directories
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+      loop: "{{ expected_cron_directories }}"
+      register: cron_directory_stats
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Assert cron directories exist with secure mode
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+          - item.stat.mode == item.item.mode
+        fail_msg: >-
+          {{ item.item.path }} must exist as a directory with mode
+          {{ item.item.mode }}.
+        quiet: true
+      loop: "{{ cron_directory_stats.results }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+
+    - name: Stat cron.allow
+      ansible.builtin.stat:
+        path: /etc/cron.allow
+      register: cron_allow_stat
+
+    - name: Assert cron.allow exists with expected mode
+      ansible.builtin.assert:
+        that:
+          - cron_allow_stat.stat.exists
+          - cron_allow_stat.stat.mode == '0640'
+        fail_msg: /etc/cron.allow must exist with mode 0640.
+        quiet: true
+
+    - name: Read cron.allow
+      ansible.builtin.slurp:
+        src: /etc/cron.allow
+      register: cron_allow_file
+
+    - name: Assert cron.allow contains expected users
+      ansible.builtin.assert:
+        that:
+          - item in (cron_allow_file.content | b64decode).splitlines()
+        fail_msg: "Expected {{ item }} to be present in /etc/cron.allow."
+        quiet: true
+      loop: "{{ cron_allowed_users }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Stat cron.deny
+      ansible.builtin.stat:
+        path: /etc/cron.deny
+      register: cron_deny_stat
+
+    - name: Assert cron.deny is absent
+      ansible.builtin.assert:
+        that:
+          - not cron_deny_stat.stat.exists
+        fail_msg: /etc/cron.deny must be absent.
+        quiet: true
+
+    - name: Gather service facts on systemd targets
+      ansible.builtin.service_facts:
+      when:
+        - ansible_facts['service_mgr'] == 'systemd'
+        - cron_service | string | trim | length > 0
+
+    - name: Resolve cron service fact key on systemd targets
+      ansible.builtin.set_fact:
+        cron_service_fact_key: >-
+          {{
+            (
+              [cron_service, cron_service ~ '.service']
+              | select('in', ansible_facts.services.keys() | list)
+              | list
+              | first
+            ) | default('')
+          }}
+      when:
+        - ansible_facts['service_mgr'] == 'systemd'
+        - cron_service | string | trim | length > 0
+
+    - name: Assert cron service exists on systemd targets
+      ansible.builtin.assert:
+        that:
+          - cron_service_fact_key | length > 0
+        fail_msg: >-
+          Expected service {{ cron_service }} (or {{ cron_service }}.service)
+          to be present in service facts on a systemd target.
+        quiet: true
+      when:
+        - ansible_facts['service_mgr'] == 'systemd'
+        - cron_service | string | trim | length > 0
+
+    - name: Assert cron service is running on systemd targets
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[cron_service_fact_key].state == 'running'
+        fail_msg: "Expected service {{ cron_service_fact_key }} to be running."
+        quiet: true
+      when:
+        - ansible_facts['service_mgr'] == 'systemd'
+        - cron_service_fact_key | default('') | length > 0
+
+    - name: Assert cron service is enabled on systemd targets when status is available
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[cron_service_fact_key].status in
+            ['enabled', 'static', 'indirect']
+        fail_msg: >-
+          Expected service {{ cron_service_fact_key }} to be enabled
+          (or static/indirect) on a systemd target.
+        quiet: true
+      when:
+        - ansible_facts['service_mgr'] == 'systemd'
+        - cron_service_fact_key | default('') | length > 0
+        - ansible_facts.services[cron_service_fact_key].status is defined
+        - ansible_facts.services[cron_service_fact_key].status not in
+          ['unknown', 'not-found']
+
+    - name: Read user crontabs when cron_jobs are requested
+      ansible.builtin.command: >-
+        crontab -l{% if item.user is defined %} -u {{ item.user }}{% endif %}
+      loop: "{{ cron_jobs }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: requested_crontabs
+      changed_when: false
+      failed_when: false
+      when:
+        - cron_jobs | length > 0
+        - item.state | default('present') == 'present'
+
+    - name: Assert requested cron jobs are present
+      ansible.builtin.assert:
+        that:
+          - item.item.job in item.stdout
+        fail_msg: >-
+          Expected cron job {{ item.item.name }} to be present in crontab output.
+        quiet: true
+      loop: "{{ requested_crontabs.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when:
+        - cron_jobs | length > 0
+        - item.item.state | default('present') == 'present'

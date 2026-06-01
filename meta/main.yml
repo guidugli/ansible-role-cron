@@ -1,26 +1,30 @@
 ---
+# Generated file. Do not edit directly.
+# Source template: meta_main.yml.j2
+
 dependencies: []
-
 galaxy_info:
-  role_name: cron
+  role_name: audit
+  namespace: guidugli
   author: guidugli
-  description: Install and configure cron service on linux
   company: Creuzo Tech
-  license: "license (BSD, MIT)"
-  min_ansible_version: '2.9'
-
+  description: >-
+    Install and configure cron service on Linux, and keep
+    release metadata aligned with the shared Molecule platform matrix.
+  license: MIT
+  min_ansible_version: '2.14'
   platforms:
     - name: Fedora
       versions:
-        - '43'
-        - '42'
+        - "all"
     - name: Ubuntu
       versions:
-        - noble
-        - jammy
+        - "resolute"
+        - "noble"
     - name: Debian
       versions:
-        - trixie
-        - bookworm
-
-  galaxy_tags: ['cron', 'crontab']
+        - "trixie"
+        - "bullseye"
+  galaxy_tags:
+    - cron
+    - linux

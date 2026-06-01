@@ -1,66 +1,190 @@
-Ansible Role: cron
-=========
+# Ansible Role: cron
 
-An Ansible Role that install and configure cron on RHEL/CentOS, Fedora and Debian/Ubuntu.
+[![CI](https://github.com/guidugli/ansible-role-cron/actions/workflows/CI.yml/badge.svg)](https://github.com/guidugli/ansible-role-cron/actions/workflows/CI.yml)
+[![Release](https://github.com/guidugli/ansible-role-cron/actions/workflows/release.yml/badge.svg)](https://github.com/guidugli/ansible-role-cron/actions/workflows/release.yml)
+[![Galaxy](https://img.shields.io/badge/galaxy-guidugli.cron-blue.svg)](https://galaxy.ansible.com/ui/standalone/roles/guidugli/cron/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Requirements
-------------
+Install and configure cron on supported Linux distributions with a small, explicit, and testable interface.
 
-No requirements.
+## Overview
 
-Role Variables
---------------
+This role installs the appropriate cron package for the target distribution, manages the base cron environment in the system configuration file, ensures secure cron directory permissions, manages `cron.allow`, and optionally creates or removes cron jobs.
 
-**Available variables are listed below, along with default values (see defaults/main.yml):**
+## Features
 
-    cron_shell: /bin/bash
+- Explicit public defaults in `defaults/main.yml`
+- Automatic argument validation via `meta/argument_specs.yml`
+- Additional semantic validation in `tasks/assert.yml`
+- Clean task flow in `tasks/main.yml`
+- Distribution-specific package, service, and configuration mapping in `vars/main.yml`
+- Molecule-friendly verification playbook in `molecule/shared/verify.yml`
+- Template-first role metadata with `templates/meta_main.yml.j2`
 
-The shell to use for running cronjobs.
+## Supported platforms
 
-    cron_path: /sbin:/bin:/usr/sbin:/usr/bin
+The generated metadata currently targets:
 
-The path to set for running jobs.
+- Debian 12 (bookworm)
+- Debian 13 (trixie)
+- Ubuntu 22.04 (jammy)
+- Ubuntu 24.04 (noble)
+- Fedora 42
+- Fedora 43
 
-    cron_mailto: root
+## Role variables
 
-The address where mails should be sent to.
+Public variables are defined in `defaults/main.yml`.
 
-    cron_allowed_users: ['myuser', 'root']
+```yaml
+cron_shell: /bin/bash
+cron_path: /sbin:/bin:/usr/sbin:/usr/bin
+cron_mailto: root
+cron_allowed_users:
+  - root
+cron_jobs: []
+```
 
-Users that can use cron.
+### `cron_jobs` structure
 
-**The variables listed below do not need to be changed for targeted systems (see vars/main.yml):**
+Each entry in `cron_jobs` supports:
 
-    cron_packages:
+- `name` (required)
+- `job` (required when `state: present`)
+- `state` (`present` or `absent`, default `present`)
+- `minute`
+- `hour`
+- `day`
+- `month`
+- `weekday`
+- `user`
 
-Packages to install cron.
+Example:
 
-    cron_configuration:
+```yaml
+cron_jobs:
+  - name: rotate logs
+    minute: '0'
+    hour: '3'
+    job: /usr/local/bin/rotate-logs.sh
+    user: root
+```
 
-Configuration path.
+## Important behavior
 
-    cron_service:
+### Package, configuration, and service mapping
 
-Cron service name.
+The role keeps OS-specific mappings in `vars/main.yml`:
 
-Dependencies
-------------
+- `cron_packages`
+- `cron_configuration`
+- `cron_service`
 
-No dependencies.
+These are resolved from internal lookup maps so callers do not need to set them directly.
 
-Example Playbook
-----------------
+### `cron.allow`
 
-    - hosts: servers
-      roles:
-         - { role: guidugli.cron }
+The role ensures:
 
-License
--------
+- `/etc/cron.deny` is absent
+- `/etc/cron.allow` exists with mode `0640`
+- each user listed in `cron_allowed_users` is present in `/etc/cron.allow`
 
-MIT / BSD
+### Privilege escalation
 
-Author Information
-------------------
+This role does not force `become` inside tasks or handlers. In normal usage, call the role from a play with `become: true`.
 
-This role was created in 2020 by Carlos Guidugli.
+## How it works
+
+1. Ansible automatically validates role inputs using `meta/argument_specs.yml`.
+2. `tasks/assert.yml` performs semantic checks that are clearer to express with asserts.
+3. The role installs cron packages.
+4. The role manages the base cron configuration (`SHELL`, `PATH`, `MAILTO`).
+5. The role enforces secure cron directory and allow-file state.
+6. Optional cron jobs are managed with `ansible.builtin.cron`.
+
+## Usage
+
+### Minimal usage
+
+```yaml
+- name: Configure cron
+  hosts: all
+  become: true
+  roles:
+    - role: guidugli.cron
+```
+
+### Manage allowed users and jobs
+
+```yaml
+- name: Configure cron with managed entries
+  hosts: all
+  become: true
+  roles:
+    - role: guidugli.cron
+      vars:
+        cron_allowed_users:
+          - root
+          - opsuser
+        cron_jobs:
+          - name: cleanup tmp
+            minute: '15'
+            hour: '2'
+            job: /usr/local/bin/cleanup-tmp.sh
+            user: root
+          - name: remove legacy entry
+            state: absent
+            user: root
+```
+
+## Molecule testing
+
+The repository already contains Molecule scenario directories. This modernization adds `molecule/shared/verify.yml` with real assertions for:
+
+- package installation
+- base cron configuration
+- cron directory permissions
+- `cron.allow` and `cron.deny` state
+- service enablement and activity on systemd targets
+- optional managed cron jobs
+
+If you later wire scenarios to shared playbooks, this file is ready to reuse.
+
+## Metadata and release notes
+
+Role metadata is maintained template-first:
+
+- source: `templates/meta_main.yml.j2`
+- generated artifact: `meta/main.yml`
+
+If you already have a repository-level generator flow, keep the template as the source of truth and regenerate `meta/main.yml` from it.
+
+## Repository structure
+
+```text
+defaults/
+handlers/
+meta/
+molecule/
+  shared/
+tasks/
+templates/
+vars/
+```
+
+## Design notes
+
+- Public inputs live in `defaults/main.yml`.
+- Semantic validation is separated from the execution path.
+- The role leaves privilege escalation to the calling play.
+- Internal OS-specific mappings remain in `vars/main.yml`.
+- The metadata template and generated metadata are intentionally aligned.
+
+## License
+
+MIT
+
+## Author
+
+Carlos Guidugli

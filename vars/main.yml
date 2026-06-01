@@ -1,5 +1,5 @@
 ---
-# vars file for cron
+# Internal OS-specific mappings.
 
 _cron_packages:
   default:
@@ -9,28 +9,51 @@ _cron_packages:
   Debian:
     - cron
   Ubuntu:
-    - systemd-cron
+    - cron
   Ubuntu-18:
     - cron
 
-cron_packages: "{{ _cron_packages[ansible_distribution ~ '-' ~ ansible_distribution_major_version] |
-               default(_cron_packages[ansible_distribution]) | default(_cron_packages['default']) }}"
+cron_packages: >-
+  {{
+    _cron_packages.get(
+      ansible_facts['distribution'] ~ '-' ~ ansible_facts['distribution_major_version'],
+      _cron_packages.get(
+        ansible_facts['distribution'],
+        _cron_packages['default']
+      )
+    )
+  }}
 
 _cron_configuration:
   default: /etc/crontab
   Archlinux: /etc/conf.d/crond
 
-cron_configuration: "{{ _cron_configuration[ansible_distribution ~ '-' ~ ansible_distribution_major_version] |
-               default(_cron_configuration[ansible_distribution]) | default(_cron_configuration['default']) }}"
+cron_configuration: >-
+  {{
+    _cron_configuration.get(
+      ansible_facts['distribution'] ~ '-' ~ ansible_facts['distribution_major_version'],
+      _cron_configuration.get(
+        ansible_facts['distribution'],
+        _cron_configuration['default']
+      )
+    )
+  }}
 
 _cron_service:
   default: crond
-  Alpine: '[]'
+  Alpine: ''
+  Archlinux: cronie
   Debian: cron
   Suse: cron
-  Archlinux: cronie
-  Ubuntu: cron.target
-  Ubuntu-18: cron
+  Ubuntu: cron
 
-cron_service: "{{ _cron_service[ansible_distribution ~ '-' ~ ansible_distribution_major_version] |
-              default(_cron_service[ansible_distribution]) | default(_cron_service['default']) }}"
+cron_service: >-
+  {{
+    _cron_service.get(
+      ansible_facts['distribution'] ~ '-' ~ ansible_facts['distribution_major_version'],
+      _cron_service.get(
+        ansible_facts['distribution'],
+        _cron_service['default']
+      )
+    )
+  }}
