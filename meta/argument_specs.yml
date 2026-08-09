@@ -8,28 +8,34 @@ argument_specs:
       cron_shell:
         type: str
         required: false
+        default: /bin/bash
         description:
           - Shell used to run cron jobs.
       cron_path:
         type: str
         required: false
+        default: /sbin:/bin:/usr/sbin:/usr/bin
         description:
           - PATH exported in the system cron configuration.
       cron_mailto:
         type: str
         required: false
+        default: root
         description:
           - Mail recipient used by cron for job output.
       cron_allowed_users:
         type: list
         elements: str
         required: false
+        default:
+          - root
         description:
           - Users allowed to schedule cron jobs through cron.allow.
       cron_jobs:
         type: list
         elements: dict
         required: false
+        default: []
         description:
           - Cron jobs managed by the role.
         options:

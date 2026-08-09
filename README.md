@@ -1,113 +1,69 @@
-# Ansible Role: cron
-
 [![CI](https://github.com/guidugli/ansible-role-cron/actions/workflows/CI.yml/badge.svg)](https://github.com/guidugli/ansible-role-cron/actions/workflows/CI.yml)
-[![Release](https://github.com/guidugli/ansible-role-cron/actions/workflows/release.yml/badge.svg)](https://github.com/guidugli/ansible-role-cron/actions/workflows/release.yml)
-[![Galaxy](https://img.shields.io/badge/galaxy-guidugli.cron-blue.svg)](https://galaxy.ansible.com/ui/standalone/roles/guidugli/cron/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/tag/guidugli/ansible-role-cron?label=release)](https://github.com/guidugli/ansible-role-cron/tags)
+[![Ansible Galaxy](https://img.shields.io/badge/ansible--galaxy-guidugli.cron-blue)](https://galaxy.ansible.com/ui/standalone/roles/guidugli/cron/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+## Ansible Role: cron
 
 Install and configure cron on supported Linux distributions with a small, explicit, and testable interface.
+The role installs the distribution cron package, manages the base cron environment, secures standard cron directories, controls `/etc/cron.allow`, removes `/etc/cron.deny`, and optionally manages user crontab entries.
 
-## Overview
+### Requirements
 
-This role installs the appropriate cron package for the target distribution, manages the base cron environment in the system configuration file, ensures secure cron directory permissions, manages `cron.allow`, and optionally creates or removes cron jobs.
+- Ansible Core 2.16 or newer according to role metadata.
+- Linux targets supported by the role metadata and Molecule platform matrix.
+- Root-level permissions are required on real hosts because the role installs packages, manages `/etc/crontab`, writes `/etc/cron.allow`, removes `/etc/cron.deny`, and manages system cron directories. Supply privilege externally from the playbook, inventory, or automation platform.
+- The `containers.podman` collection is required for Molecule container scenarios and is pinned in `requirements.yml` with a minimum version.
 
-## Features
+### Features
 
-- Explicit public defaults in `defaults/main.yml`
-- Automatic argument validation via `meta/argument_specs.yml`
-- Additional semantic validation in `tasks/assert.yml`
-- Clean task flow in `tasks/main.yml`
-- Distribution-specific package, service, and configuration mapping in `vars/main.yml`
-- Molecule-friendly verification playbook in `molecule/shared/verify.yml`
-- Template-first role metadata with `templates/meta_main.yml.j2`
+- Installs the correct cron package from internal distribution mappings.
+- Manages base cron environment values for `SHELL`, `PATH`, and `MAILTO`.
+- Ensures standard cron directories exist with secure ownership and permissions.
+- Ensures `/etc/cron.allow` exists with secure permissions and contains the configured allow list.
+- Ensures `/etc/cron.deny` is absent.
+- Optionally creates or removes user crontab entries with `ansible.builtin.cron`.
+- Uses role argument validation through `meta/argument_specs.yml` and semantic validation through `tasks/assert.yml`.
+- Leaves privilege escalation to the execution context and uses tags on all role tasks.
 
-## Supported platforms
+### Supported platforms
 
-The generated metadata currently targets:
+The generated metadata currently lists Fedora, Ubuntu, and Debian. The bundled Molecule shared matrix includes Ubuntu 26.04 and 24.04, Debian 13 and 12, and Fedora 44 and 43.
 
-- Debian 12 (bookworm)
-- Debian 13 (trixie)
-- Ubuntu 22.04 (jammy)
-- Ubuntu 24.04 (noble)
-- Fedora 42
-- Fedora 43
+### Variables
 
-## Role variables
+All public inputs are defined in `defaults/main.yml` and surfaced through `meta/argument_specs.yml`.
 
-Public variables are defined in `defaults/main.yml`.
+| Variable | Type | Default | Description |
+| --- | --- | --- | --- |
+| `cron_shell` | string | `/bin/bash` | Shell written to the cron configuration file as `SHELL=<value>`. |
+| `cron_path` | string | `/sbin:/bin:/usr/sbin:/usr/bin` | PATH written to the cron configuration file as `PATH=<value>`. |
+| `cron_mailto` | string | `root` | Mail recipient written to the cron configuration file as `MAILTO=<value>`. |
+| `cron_allowed_users` | list of strings | `['root']` | Users that must be present in `/etc/cron.allow`. Duplicate values are rejected by validation. |
+| `cron_jobs` | list of dictionaries | `[]` | Optional crontab entries to create or remove. |
 
-```yaml
-cron_shell: /bin/bash
-cron_path: /sbin:/bin:/usr/sbin:/usr/bin
-cron_mailto: root
-cron_allowed_users:
-  - root
-cron_jobs: []
-```
+#### `cron_jobs` item schema
 
-### `cron_jobs` structure
+Each item in `cron_jobs` supports the following keys.
 
-Each entry in `cron_jobs` supports:
+| Key | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | yes | Unique Ansible cron entry name. |
+| `job` | string | required when `state` is `present` | Command written to the crontab entry. |
+| `state` | string | no | `present` or `absent`. Omitted values are treated as `present`. |
+| `minute` | raw | no | Minute field passed to `ansible.builtin.cron`. |
+| `hour` | raw | no | Hour field passed to `ansible.builtin.cron`. |
+| `day` | raw | no | Day-of-month field passed to `ansible.builtin.cron`. |
+| `month` | raw | no | Month field passed to `ansible.builtin.cron`. |
+| `weekday` | raw | no | Day-of-week field passed to `ansible.builtin.cron`. |
+| `user` | string | no | User that owns the crontab entry. If omitted, Ansible uses the module default for the target context. |
 
-- `name` (required)
-- `job` (required when `state: present`)
-- `state` (`present` or `absent`, default `present`)
-- `minute`
-- `hour`
-- `day`
-- `month`
-- `weekday`
-- `user`
+### Example playbook
 
-Example:
-
-```yaml
-cron_jobs:
-  - name: rotate logs
-    minute: '0'
-    hour: '3'
-    job: /usr/local/bin/rotate-logs.sh
-    user: root
-```
-
-## Important behavior
-
-### Package, configuration, and service mapping
-
-The role keeps OS-specific mappings in `vars/main.yml`:
-
-- `cron_packages`
-- `cron_configuration`
-- `cron_service`
-
-These are resolved from internal lookup maps so callers do not need to set them directly.
-
-### `cron.allow`
-
-The role ensures:
-
-- `/etc/cron.deny` is absent
-- `/etc/cron.allow` exists with mode `0640`
-- each user listed in `cron_allowed_users` is present in `/etc/cron.allow`
-
-### Privilege escalation
-
-This role does not force `become` inside tasks or handlers. In normal usage, call the role from a play with `become: true`.
-
-## How it works
-
-1. Ansible automatically validates role inputs using `meta/argument_specs.yml`.
-2. `tasks/assert.yml` performs semantic checks that are clearer to express with asserts.
-3. The role installs cron packages.
-4. The role manages the base cron configuration (`SHELL`, `PATH`, `MAILTO`).
-5. The role enforces secure cron directory and allow-file state.
-6. Optional cron jobs are managed with `ansible.builtin.cron`.
-
-## Usage
-
-### Minimal usage
+#### Minimal usage
 
 ```yaml
+---
 - name: Configure cron
   hosts: all
   become: true
@@ -115,15 +71,19 @@ This role does not force `become` inside tasks or handlers. In normal usage, cal
     - role: guidugli.cron
 ```
 
-### Manage allowed users and jobs
+#### Manage allowed users and cron jobs
 
 ```yaml
-- name: Configure cron with managed entries
+---
+- name: Configure cron with managed jobs
   hosts: all
   become: true
   roles:
     - role: guidugli.cron
       vars:
+        cron_shell: /bin/bash
+        cron_path: /sbin:/bin:/usr/sbin:/usr/bin
+        cron_mailto: root
         cron_allowed_users:
           - root
           - opsuser
@@ -138,53 +98,44 @@ This role does not force `become` inside tasks or handlers. In normal usage, cal
             user: root
 ```
 
-## Molecule testing
+### Molecule testing instructions
 
-The repository already contains Molecule scenario directories. This modernization adds `molecule/shared/verify.yml` with real assertions for:
-
-- package installation
-- base cron configuration
-- cron directory permissions
-- `cron.allow` and `cron.deny` state
-- service enablement and activity on systemd targets
-- optional managed cron jobs
-
-If you later wire scenarios to shared playbooks, this file is ready to reuse.
-
-## Metadata and release notes
-
-Role metadata is maintained template-first:
-
-- source: `templates/meta_main.yml.j2`
-- generated artifact: `meta/main.yml`
-
-If you already have a repository-level generator flow, keep the template as the source of truth and regenerate `meta/main.yml` from it.
-
-## Repository structure
-
-```text
-defaults/
-handlers/
-meta/
-molecule/
-  shared/
-tasks/
-templates/
-vars/
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+ansible-galaxy collection install -r requirements.yml
+molecule test -s default
+molecule test -s systemd
 ```
 
-## Design notes
+A convenience script is also present.
 
-- Public inputs live in `defaults/main.yml`.
-- Semantic validation is separated from the execution path.
-- The role leaves privilege escalation to the calling play.
-- Internal OS-specific mappings remain in `vars/main.yml`.
-- The metadata template and generated metadata are intentionally aligned.
+```bash
+./scripts/run_local.sh
+```
 
-## License
+### Execution notes
+
+- **Privilege model:** the role never declares `become`, `become_user`, or `become_method`. Use `become: true` at the play, inventory, or automation-controller level for real hosts where package installation, `/etc` changes, service management, and crontab ownership require elevated privileges.
+- **Container behavior:** Molecule containers generally execute as root and use `become: false` in shared converge logic. Role tasks do not assume privilege escalation inside the role.
+- **Systemd behavior:** service management and service verification run only when `ansible_facts['service_mgr'] == 'systemd'` and a cron service name is configured. Non-systemd containers still receive package, file, cron.allow, and optional crontab configuration.
+- **Idempotency:** file, line, package, service, and cron modules are used for deterministic changes. Commands in Molecule verification use `changed_when: false`.
+- **Metadata generation:** generated metadata is controlled by `templates/meta_main.yml.j2` and the release metadata scripts. Do not edit generated `meta/main.yml` directly.
+
+### Release workflow
+
+Generated repository metadata is refreshed through the shared generator scripts.
+
+```bash
+./scripts/update_release_metadata.sh
+./scripts/release.sh --version v1.2.0 --message "Release v1.2.0"
+```
+
+### License
 
 MIT
 
-## Author
+### Author
 
 Carlos Guidugli

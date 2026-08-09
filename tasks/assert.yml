@@ -5,6 +5,9 @@
       - cron_shell | string | trim | length > 0
     fail_msg: cron_shell must be a non-empty string.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_path
   ansible.builtin.assert:
@@ -12,6 +15,9 @@
       - cron_path | string | trim | length > 0
     fail_msg: cron_path must be a non-empty string.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_mailto
   ansible.builtin.assert:
@@ -19,6 +25,9 @@
       - cron_mailto | string | trim | length > 0
     fail_msg: cron_mailto must be a non-empty string.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_allowed_users container type
   ansible.builtin.assert:
@@ -27,6 +36,9 @@
       - cron_allowed_users is not string
     fail_msg: cron_allowed_users must be a list of usernames.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_allowed_users entries
   ansible.builtin.assert:
@@ -37,6 +49,9 @@
   loop: "{{ cron_allowed_users }}"
   loop_control:
     label: "{{ item }}"
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_allowed_users uniqueness
   ansible.builtin.assert:
@@ -44,6 +59,9 @@
       - cron_allowed_users | unique | length == cron_allowed_users | length
     fail_msg: cron_allowed_users must not contain duplicate usernames.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_jobs container type
   ansible.builtin.assert:
@@ -52,6 +70,9 @@
       - cron_jobs is not string
     fail_msg: cron_jobs must be a list of cron job definitions.
     quiet: true
+  tags:
+    - cron
+    - validate
 
 - name: Validate cron_jobs entries
   ansible.builtin.assert:
@@ -59,7 +80,9 @@
       - item is mapping
       - item.name | default('') | string | trim | length > 0
       - item.state | default('present') in ['present', 'absent']
-      - (item.state | default('present')) == 'absent' or (item.job | default('') | string | trim | length > 0)
+      - >-
+        (item.state | default('present')) == 'absent' or
+        (item.job | default('') | string | trim | length > 0)
       - item.user is not defined or (item.user | string | trim | length > 0)
       - item.minute is not defined or (item.minute | string | trim | length > 0)
       - item.hour is not defined or (item.hour | string | trim | length > 0)
@@ -73,3 +96,6 @@
   loop: "{{ cron_jobs }}"
   loop_control:
     label: "{{ item.name | default('unnamed') }}"
+  tags:
+    - cron
+    - validate

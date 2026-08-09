@@ -1,16 +1,42 @@
 ---
 - name: Run semantic validation
   ansible.builtin.import_tasks: assert.yml
+  tags:
+    - cron
+    - validate
 
-- name: Update apt cache
+- name: Inspect apt package indexes on Debian family hosts
+  ansible.builtin.find:
+    paths: /var/lib/apt/lists
+    patterns: '*_Packages*'
+    file_type: file
+  register: cron_apt_package_indexes
+  changed_when: false
+  when: ansible_facts['os_family'] == 'Debian'
+  tags:
+    - cron
+    - install
+
+- name: Update apt cache on Debian family hosts
   ansible.builtin.apt:
     update_cache: true
+    cache_valid_time: >-
+      {{
+        3600 if (cron_apt_package_indexes.matched | default(0) | int) > 0
+        else 0
+      }}
   when: ansible_facts['os_family'] == 'Debian'
+  tags:
+    - cron
+    - install
 
 - name: Install cron packages
   ansible.builtin.package:
     name: "{{ cron_packages }}"
     state: present
+  tags:
+    - cron
+    - install
 
 - name: Configure cron SHELL
   ansible.builtin.lineinfile:
@@ -18,8 +44,13 @@
     regexp: '^SHELL='
     line: "SHELL={{ cron_shell }}"
     create: true
+    owner: root
+    group: root
     mode: '0600'
   notify: Restart cron
+  tags:
+    - cron
+    - config
 
 - name: Configure cron PATH
   ansible.builtin.lineinfile:
@@ -27,8 +58,13 @@
     regexp: '^PATH='
     line: "PATH={{ cron_path }}"
     create: true
+    owner: root
+    group: root
     mode: '0600'
   notify: Restart cron
+  tags:
+    - cron
+    - config
 
 - name: Configure cron MAILTO
   ansible.builtin.lineinfile:
@@ -36,8 +72,13 @@
     regexp: '^MAILTO='
     line: "MAILTO={{ cron_mailto }}"
     create: true
+    owner: root
+    group: root
     mode: '0600'
   notify: Restart cron
+  tags:
+    - cron
+    - config
 
 - name: Ensure cron directories exist with secure permissions
   ansible.builtin.file:
@@ -57,11 +98,19 @@
       mode: '0700'
     - path: /etc/cron.d
       mode: '0700'
+  loop_control:
+    label: "{{ item.path }}"
+  tags:
+    - cron
+    - config
 
 - name: Ensure cron.deny is absent
   ansible.builtin.file:
     path: /etc/cron.deny
     state: absent
+  tags:
+    - cron
+    - config
 
 - name: Ensure cron.allow exists
   ansible.builtin.file:
@@ -72,6 +121,9 @@
     mode: '0640'
     modification_time: preserve
     access_time: preserve
+  tags:
+    - cron
+    - config
 
 - name: Ensure allowed users are present in cron.allow
   ansible.builtin.lineinfile:
@@ -83,25 +135,37 @@
     group: root
     mode: '0640'
   loop: "{{ cron_allowed_users | unique }}"
+  loop_control:
+    label: "{{ item }}"
+  tags:
+    - cron
+    - config
 
-- name: Gather service facts when cron service management may apply
+- name: Gather service facts when systemd cron service management may apply
   ansible.builtin.service_facts:
   when:
+    - ansible_facts['service_mgr'] == 'systemd'
     - cron_service | string | trim | length > 0
+  tags:
+    - cron
+    - service
 
 - name: Resolve cron service fact key
   ansible.builtin.set_fact:
     cron_service_fact_key: >-
       {{
-        (
-          [cron_service, cron_service ~ '.service']
-          | select('in', ansible_facts.services.keys() | list)
-          | list
-          | first
-        ) | default('')
+        ([cron_service, cron_service ~ '.service']
+        | select('in', ansible_facts.services.keys() | list)
+        | list
+        | first) | default('')
       }}
+  changed_when: false
   when:
+    - ansible_facts['service_mgr'] == 'systemd'
     - cron_service | string | trim | length > 0
+  tags:
+    - cron
+    - service
 
 - name: Enable and start cron service when discoverable
   ansible.builtin.service:
@@ -109,7 +173,11 @@
     state: started
     enabled: true
   when:
+    - ansible_facts['service_mgr'] == 'systemd'
     - cron_service_fact_key | default('') | length > 0
+  tags:
+    - cron
+    - service
 
 - name: Manage requested cron jobs
   ansible.builtin.cron:
@@ -127,3 +195,6 @@
     label: "{{ item.name }}"
   notify: Restart cron
   when: cron_jobs | length > 0
+  tags:
+    - cron
+    - config

@@ -4,4 +4,8 @@
     name: "{{ cron_service_fact_key | default(cron_service) }}"
     state: restarted
   when:
-    - (cron_service_fact_key | default('')) | length > 0
+    - ansible_facts['service_mgr'] == 'systemd'
+    - (cron_service_fact_key | default(cron_service) | default('')) | length > 0
+  tags:
+    - cron
+    - service
